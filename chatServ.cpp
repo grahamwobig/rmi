@@ -12,40 +12,51 @@
 #include <mutex>
 #define PORT_NO 8100
 #define BACKLOG 5
-#define END_MSG "*$*"
 
+bool endConnection = false;
+std::mutex mut;
 	
 using namespace std;
 
-int sendData(int fd, char* buff) {
-	int numBytes = sizeof(*buff);
-	int sent = 0;
-	if (*buff == '#') {
-		return -2;
-	}
-	do {
-		sent = send(fd, buff, sizeof(buff), 0);
-		if (sent < 0) {
-			perror("Error sending from Server");
-			return -1;
+void sendData(int fd, int* err) {
+	while (1) {
+		char buff[1024];
+		memset(buff, 0, 1024);
+		cin.getline(buff, 1024);
+		if (*buff == '#') {
+			endConnection = true;
+			close(fd);
+			break;
 		}
-		numBytes += sent;
-	}while (numBytes != sent);
-	return 0;
+		int numBytes = strlen(buff);
+		int sent = 0;
+		if (numBytes != 0) {
+			do {
+				int temp = send(fd, buff, 1024, 0);
+				if (sent < 0) {
+					perror("Error sending from Server");
+					*err = 1;
+				}
+				sent += temp;
+			}while (numBytes > sent);
+		}
+	}
 }
 
-int recvData(int fd, char* buff) {
-	int recvd = 0;
-	do {
-		recvd = recv(fd, buff, sizeof(buff), 0);
+void recvData(int fd, char* buff, bool *display, int* err) {
+	while (!endConnection) {
+		int recvd = 0;
+		recvd = recv(fd, buff, 1024, 0);
 		if (recvd <= 0) {
 			if (recvd == 0) {
-				cout << "Client disconnected!" << endl;
-				return -2;
+				cout << "Client disconnected! Type # to end session" << endl;
+				endConnection = true;
+				break;
 			}
-			return -1;
+			*err = 1;
 		}
-	} while (*buff != END_MSG)
+		*display = true;
+	}
 }
 
 int main(int argc, char *argv[]) {
@@ -82,11 +93,29 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 	cout << "Connection with Client was successful!" << endl;
-	cout << "Type # to end the connection" << endl;
-	bool endConnect = false;
-	/**
- 	* insert threading logic
- 	*/
+	cout << "Type # to end the connection or enter something to send" << endl;
+	bool disp = false;
+	int sndErr = 0;
+	int recvErr = 0;
+	thread recvThd(recvData, cliSock, buffer, &disp, &recvErr);
+	thread sendThd(sendData, cliSock, &sndErr);
+	while (!endConnection) {
+		if (disp)  {
+			mut.lock();
+			cout << "Client: " <<  buffer << endl;
+			memset(buffer, 0, 1024);
+			disp = false;
+			mut.unlock();
+		}	
+		if (sndErr != 0) {
+			break;
+		}
+		if (recvErr != 0) {
+			break;
+		}
+	}
+	recvThd.join();
+	sendThd.join();
 	close(servSock);
 	return 0;
 }

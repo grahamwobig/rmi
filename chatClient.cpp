@@ -6,40 +6,56 @@
 #include <string.h>
 #include <netinet/in.h>
 #include <errno.h>
+#include <arpa/inet.h>
+#include <iostream>
+#include <thread>
+#include <mutex>
 #define PORT_NO 8100
-#define END_MSG "*$*"
 
+bool endConnection = false;
+std::mutex mut;
 
 using namespace std;
 
-int sendData(int fd, char* buff) {
-	int numBytes = sizeof(buff);
-	int sent = 0;
-	if (*buff == '#') {
-		return -2;
-	}
-	do {
-		sent = send(fd, buff, sizeof(buff), 0);
-		if (sent < 0) {
-			perror("Error sending from Client");
-			return -1;
+void sendData(int fd, int* err) {
+	while (1) {
+		char buff[1024];
+		memset(buff, 0, 1024);
+		cin.getline(buff,1024);
+		if (*buff == '#') {
+			endConnection = true;
+			close(fd);
+			break;
 		}
-		numBytes += sent;
-	} while (numBytes != sent)
+		int numBytes = strlen(buff);
+		int sent = 0;
+		if (numBytes != 0) {
+			do {
+				int temp = send(fd, buff, 1024, 0);
+				if (sent < 0) {
+					perror("Error sending from Client");
+					*err = 1;
+				}
+				sent += temp;
+			}while (numBytes > sent);
+		}
+	}
 }
 
-int recvData(int fd, char* buff) {
-	int recvd = 0;
-	do {
-		recvd = recv(fd, buff, sizeof(buff), 0);
+int recvData(int fd, char* buff, bool* display, int* err) {
+	while (!endConnection) {
+		int recvd = 0;
+		recvd = recv(fd, buff, 1024, 0);
 		if (recvd <= 0) {
 			if (recvd == 0) {
-				cout << "Server disconnected!" << endl;
-				return -2;
+				cout << "Server disconnected! Type # to end session" << endl;
+				endConnection = true;
+				break;
 			}
-			return -1;
+			*err = 1;
 		}
-	} while (*buff != END_MSG)
+		*display = true;
+	}
 }
 
 int main(int argc, char *argv[]) {
@@ -53,7 +69,7 @@ int main(int argc, char *argv[]) {
 		perror("Failed to create socket");
 		exit(1);
 	}
-	printf("Socket Created!\n");
+	cout << "Socket Created!" << endl;
 	servAddr.sin_family = AF_INET;
 	servAddr.sin_port = htons(PORT_NO);
 	servAddr.sin_addr.s_addr = INADDR_ANY;
@@ -62,9 +78,29 @@ int main(int argc, char *argv[]) {
 		perror("Failed to connect to the Server");
 		exit(1);
 	}
-	printf("Connection with Server Successful!\n");
-	/**
- 	*threading logic goes here
- 	*/
+	cout << "Connection with Server Successful!" << endl;
+	bool disp = false;
+	int sndErr = 0;
+	int recvErr = 0;
+	thread recvThd(recvData, cliSock, buffer, &disp, &recvErr);
+	thread sendThd(sendData, cliSock, &sndErr);
+	while (!endConnection) {
+		if (sndErr != 0) {
+                        break;
+                }
+                if (recvErr != 0) {
+                        break;
+                }
+		if (disp) { 
+			mut.lock();
+			cout << "Server: " << buffer << endl;
+			memset(buffer, 0, 1024);
+			disp = false;
+			mut.unlock();
+		}
+	}
+	recvThd.join();
+	sendThd.join();
+	close(cliSock);
 	return 0;
 }
