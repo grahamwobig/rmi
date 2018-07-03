@@ -92,7 +92,7 @@ See also the list of [contributors](https://github.com/your/project/contributors
 
 ## Current project files
 
-shmIn.cpp (need to start this process prior to following process)
+# shmIn.cpp (need to start this process prior to following process)
 	-to compile: g++ -o shmi -lrt -std=c++11 shmIn.cpp
 	-implementation: ./shm /sharedmemfilename portno
 	-contains server side logic for socket communication
@@ -101,14 +101,14 @@ shmIn.cpp (need to start this process prior to following process)
 	-then, signal is sent via socket to client process to perform calculations
 	-last, signal from client that calculations are done is recieved 
 	-server prints out employee info
-shmCalc.cpp
+# shmCalc.cpp
 	-to compile: g++ -o shmc -lrt -std=c++11 shmCalc.cpp
 	-implementation: ./shmc /sharedmemfilename portno  
 		-portno and filename should be same as those used when executing ./shmi
 	-contains client side logic for socket communication
 	-awaits signal from server, then runs calculations on data 
 	-signals server to display the results
-employee.h
+# employee.h
 	-contains the struct for our proof of concept
 	-has includes for using posix shared memory
--This is being run in two seperate processes on the same virtual machine
+	-This is being run in two seperate processes on the same virtual machine
