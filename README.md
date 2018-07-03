@@ -1,6 +1,6 @@
 # Compiler Tools For Distributed Computing
 
-This project aims to help developers to implement distributed application.
+This project aims to help developers to implement distributed applications.
 
 ### Prerequisites
 
