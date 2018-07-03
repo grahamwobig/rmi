@@ -16,13 +16,13 @@ int main(int argc, char *argv[]) {
 	struct sockaddr_in serv;
 	//check for proper usage
 	if (argc < 3) {
-		cout << "Not enough argmuents. Usage: test /filename portno." << endl;
+		cout << "Not enough argmuents. Usage:./shmi /filename portno." << endl;
 		return -1;
 	}
 	//create shared memory
 	fd = shm_open(argv[1], O_CREAT | O_EXCL | O_RDWR, 777);
 	if (fd < 0) {
-		cout << "Error creating shared memory block" << endl;
+		perror( "Error creating shared memory block");
 		return -1;
 	}
 	ret = ftruncate(fd, sizeof(Employee));
@@ -30,8 +30,13 @@ int main(int argc, char *argv[]) {
 		perror("Error allocating shared memory block");
 		return -1;
 	}
+	//map shared memory
 	Employee* e = reinterpret_cast<Employee*> (mmap(NULL, sizeof(Employee), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0));
-	//close file descriptor, not necessary to read or write in shared memory
+	if (reinterpret_cast<void*>(e) == MAP_FAILED) {
+		perror("Failed to map shared memory");
+		return -1;
+	}
+	//close shared mem fd, not necessary to read or write in shared memory
 	close(fd);
 	cout << "Shared Memory initialized..." << endl;
 	//create socket
@@ -64,6 +69,13 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 	cout << "Successfully connected to Client!" << endl;
+	cout << "Please enter employee age: ";
+	cin  >> e->age;
+	cout <<  "Please enter employee years of experience: ";
+	cin >> e->yrsExp;
+	cout << "Please enter employee's position code(e, s, or p): ";
+	cin  >> e->posn;
+	cout << "Data input done! Notifying client..." << endl;
 	//unmap shared memory
 	ret = munmap(reinterpret_cast<void*>(e), sizeof(Employee));
 	if (ret < 0) {
