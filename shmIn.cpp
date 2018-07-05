@@ -19,8 +19,7 @@ int main(int argc, char *argv[]) {
 		cout << "Not enough argmuents. Usage:./shmi /filename portno." << endl;
 		return -1;
 	}
-	//create shared memory
-	fd = shm_open(argv[1], O_CREAT | O_EXCL | O_RDWR, 777);
+	fd = shm_open(argv[1], O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
 	if (fd < 0) {
 		perror( "Error creating shared memory block");
 		return -1;
@@ -69,6 +68,19 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 	cout << "Successfully connected to Client!" << endl;
+	//intialize semaphore
+	ret = sem_init(&e->sem, 1, 1);
+	if (ret < 0) {
+		perror("Error initializing semaphore");
+		return -1;
+	}
+	//obtain semaphore
+	ret = sem_wait(&e->sem);
+	if (ret < 0) {
+		perror("Error obtaining semaphore");
+		return -1;
+	}
+	//get data from user input and place in shared memory
 	cout << "Please enter employee age: ";
 	cin  >> e->age;
 	cout <<  "Please enter employee years of experience: ";
@@ -76,6 +88,63 @@ int main(int argc, char *argv[]) {
 	cout << "Please enter employee's position code(e, s, or p): ";
 	cin  >> e->posn;
 	cout << "Data input done! Notifying client..." << endl;
+	//Release semaphore
+	ret = sem_post(&e->sem);
+	if (ret < 0) {
+		perror("Error releasing semaphore");
+		return -1;
+	}
+	//send signal to client
+	int sendCode = 1;
+	int sent = 0;
+	do {
+		ret = send(cliSock, &sendCode, sizeof(int), 0);
+		if (ret < 0) {
+			perror("Error notifying client via socket");
+			return -1;
+		}
+		sent += ret;
+	} while (sent < sizeof(int));
+	//block this process while we wait for signal from client that calculations are done
+	int recvCode = 0;
+	int recvd = 0;
+	do {
+		ret = recv(cliSock, &recvCode, sizeof(int), 0);
+		if (ret < 0) {
+			if (ret == 0) {
+				cout << "Client has closed the socket connection" << endl;
+				return -1;
+			}
+			perror("Error recieving signal from client via socket");
+			return -1;
+		}
+		recvd += ret;
+	} while (recvd < sizeof(int));
+	if (recvCode == 1) {
+		//obtain semaphore again
+		ret = sem_wait(&e->sem);
+		if (ret < 0) {
+			perror("Error obtaining semaphore");
+			return -1;
+		}
+		//disp results from calculation
+		cout << "Employee salary calculated to be: " << e->salary << endl;
+		//release semaphore
+		ret = sem_post(&e->sem);
+		if (ret < 0) {
+			perror("Error releasing semaphore");
+			return -1;
+		}
+	}
+	//done using semaphore so we can destroy
+	ret = sem_destroy(&e->sem);
+	if (ret < 0) {
+		perror("Failed to unlink semaphore");
+		return -1;
+	}
+	//done with sockets so we can close
+	close(servSock);
+	close(cliSock);
 	//unmap shared memory
 	ret = munmap(reinterpret_cast<void*>(e), sizeof(Employee));
 	if (ret < 0) {
