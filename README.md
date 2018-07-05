@@ -95,7 +95,7 @@ See also the list of [contributors](https://github.com/your/project/contributors
 ## Current project files
 
 # shmIn.cpp (need to start this process prior to following process)
-	-to compile: g++ -o shmi -lrt -std=c++11 shmIn.cpp
+	-to compile: g++ -o shmi -lrt -pthread -std=c++11 shmIn.cpp
 	-implementation: ./shm /sharedmemfilename portno
 	-contains server side logic for socket communication
 	-sets up the POSIX shared memory object
@@ -104,7 +104,7 @@ See also the list of [contributors](https://github.com/your/project/contributors
 	-last, signal from client that calculations are done is recieved 
 	-server prints out employee info
 # shmCalc.cpp
-	-to compile: g++ -o shmc -lrt -std=c++11 shmCalc.cpp
+	-to compile: g++ -o shmc -lrt -pthread -std=c++11 shmCalc.cpp
 	-implementation: ./shmc /sharedmemfilename portno  
 		-portno and filename should be same as those used when executing ./shmi
 	-contains client side logic for socket communication
